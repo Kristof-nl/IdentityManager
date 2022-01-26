@@ -1,6 +1,10 @@
 ﻿using IdentityManager.Models;
+using MailKit.Net.Smtp;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
+using MimeKit;
 using System.Threading.Tasks;
 
 namespace IdentityManager.Controllers
@@ -9,11 +13,14 @@ namespace IdentityManager.Controllers
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly IEmailSender _emailSender;
 
-        public AccountController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager)
+        public AccountController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager,
+            IEmailSender emailSender)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _emailSender = emailSender;
         }
 
         public IActionResult Index()
@@ -69,10 +76,64 @@ namespace IdentityManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [AllowAnonymous]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
         {
-            
-            return View(model);
+            if (ModelState.IsValid)
+            {
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user == null)
+                {
+                    return RedirectToAction("ForgotPasswordConfirmation");
+                }
+
+                var code = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var callbackurl = Url.Action("ResetPassword", "Account", new { userId = user.Id, code = code }, protocol: HttpContext.Request.Scheme);
+
+                MimeMessage message = new MimeMessage();
+                message.From.Add(new MailboxAddress("Tester", "test.identitymanager.test@gmail.com"));
+                message.To.Add(MailboxAddress.Parse(user.Email));
+
+                message.Subject = "Reset Password - Identity Manager";
+                message.Body = new TextPart("html")
+                {
+                    Text = "Please reset your password by clicking here: <a href=\"" + callbackurl + "\">link</a>"
+                };
+
+                var emailAddress = "test.identitymanager.test@gmail.com";
+                var password = "prostehaslo";
+
+                SmtpClient client = new SmtpClient();
+                try
+                {
+                    client.Connect("smtp.gmail.com", 465, true);
+                    client.Authenticate(emailAddress, password);
+                    client.Send(message);
+                }
+                catch (System.Exception)
+                {
+                    return null;
+                }
+                finally
+                {
+                    client.Disconnect(true);
+                    client.Dispose();
+                }
+
+                //await _emailSender.SendEmailAsync(model.Email, "Reset Password - Identity Manager",
+                //    "Please reset your password by clicking here: <a href=\"" + callbackurl + "\">link</a>");
+
+                return RedirectToAction("ForgotPasswordConfirmation");
+            }
+
+
+                return View(model);
+        }
+
+        [HttpGet]
+        public IActionResult ForgotPasswordConfirmation()
+        {
+            return View();
         }
 
         [HttpGet]
