@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using MimeKit;
 using System.Threading.Tasks;
 
@@ -14,13 +15,15 @@ namespace IdentityManager.Controllers
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly IEmailSender _emailSender;
+        private readonly IConfiguration _config;
 
         public AccountController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager,
-            IEmailSender emailSender)
+            IEmailSender emailSender, IConfiguration config)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _emailSender = emailSender;
+            _config = config;   
         }
 
         public IActionResult Index()
@@ -100,8 +103,8 @@ namespace IdentityManager.Controllers
                     Text = "Please reset your password by clicking here: <a href=\"" + callbackurl + "\">link</a>"
                 };
 
-                var emailAddress = "test.identitymanager.test@gmail.com";
-                var password = "prostehaslo";
+                var emailAddress = _config["secretKey1"];
+                var password = _config["secretKey2"];
 
                 SmtpClient client = new SmtpClient();
                 try
