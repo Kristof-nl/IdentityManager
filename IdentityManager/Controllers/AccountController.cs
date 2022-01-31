@@ -173,6 +173,46 @@ namespace IdentityManager.Controllers
             return View(model);
         }
 
+        [HttpGet]
+        public IActionResult ResetPasswordConfirmation()
+        {
+            return View();
+        }
+
+
+        [HttpGet]
+        public IActionResult ResetPassword(string code=null)
+        {
+            return code == null ? View("Error") : View();
+            
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user == null)
+                {
+                    return RedirectToAction("ResetPasswordConfirmation");
+                }
+
+                var result = await _userManager.ResetPasswordAsync(user, model.Code, model.Password);
+                if(result.Succeeded)
+                {
+                    return RedirectToAction("ResetPasswordConfirmation");
+                }
+
+                AddErrors(result);
+            }
+
+
+            return View(model);
+        }
+
 
         private void AddErrors(IdentityResult result)
         {
