@@ -24,7 +24,7 @@ namespace IdentityManager.Controllers
             _signInManager = signInManager;
             _emailSender = emailSender;
             _config = config;   
-        }
+        }   
 
         public IActionResult Index()
         {
@@ -53,12 +53,62 @@ namespace IdentityManager.Controllers
                 var result = await _userManager.CreateAsync(user, model.Password);
                 if (result.Succeeded)
                 {
+                    var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                    var callbackurl = Url.Action("ConfirmEmail", "Account", new { userId = user.Id, code = code }, protocol: HttpContext.Request.Scheme);
+
+                    MimeMessage message = new MimeMessage();
+                    message.From.Add(new MailboxAddress("Tester", "test.identitymanager.test@gmail.com"));
+                    message.To.Add(MailboxAddress.Parse(user.Email));
+
+                    message.Subject = "Confirm your Account - Identity Manager";
+                    message.Body = new TextPart("html")
+                    {
+                        Text = "Please confirm your account by clicking here: <a href=\"" + callbackurl + "\">link</a>"
+                    };
+
+                    var emailAddress = _config["secretKey1"];
+                    var password = _config["secretKey2"];
+
+                    SmtpClient client = new SmtpClient();
+                    try
+                    {
+                        client.Connect("smtp.gmail.com", 465, true);
+                        client.Authenticate(emailAddress, password);
+                        client.Send(message);
+                    }
+                    catch (System.Exception)
+                    {
+                        return null;
+                    }
+                    finally
+                    {
+                        client.Disconnect(true);
+                        client.Dispose();
+                    }
+
                     await _signInManager.SignInAsync(user, isPersistent: false);
                     return LocalRedirect(returnurl);
                 }
                 AddErrors(result);
             }
             return View(model);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ConfirmEmail(string userId, string code)
+        {
+            if(userId == null || code == null)
+            {
+                return View("Error");
+            }
+            var user = await _userManager.FindByIdAsync(userId);
+            if(user == null)
+            {
+                return View("Error");
+            }
+            var result = await _userManager.ConfirmEmailAsync(user, code);
+            return View(result.Succeeded ? "ConfirmEmail" : "Error");  
+            
         }
 
 
